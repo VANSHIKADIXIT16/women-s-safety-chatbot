@@ -9,9 +9,9 @@ from twilio.rest import Client
 from PIL import Image, ImageTk, ImageDraw
 
 # Twilio API Setup
-TWILIO_ACCOUNT_SID = "USE_YOUR_ACCOUNT_GUYS"  # Replace with your Twilio SID
-TWILIO_AUTH_TOKEN = "USE_YOUR_ACCOUNT_GUYS"  # Replace with your Twilio Auth Token
-TWILIO_PHONE_NUMBER = "USE_YOUR_ACCOUNT_GUYS"  # Replace with your Twilio phone number
+TWILIO_ACCOUNT_SID = "Add_yourID_fren"  # Replace with your Twilio SID
+TWILIO_AUTH_TOKEN = "Add_yourTOKEN_fren"  # Replace with your Twilio Auth Token
+TWILIO_PHONE_NUMBER = "Add_yourNUMBER_fren"  # Replace with your Twilio phone number
 
 # Database Setup
 def init_db():
@@ -20,30 +20,40 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS contacts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            number TEXT NOT NULL
+            number TEXT NOT NULL UNIQUE
         )
     """)
-    conn.commit()
-    conn.close()
+    
+   
 
+# Function to add contact while preventing duplicates
 def add_contact_to_db():
     contact = simpledialog.askstring("Add Contact", "Enter emergency contact number:")
     if contact:
         conn = sqlite3.connect("emergency_contacts.db")
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO contacts (number) VALUES (?)", (contact,))
-        conn.commit()
+        cursor.execute("SELECT number FROM contacts WHERE number = ?", (contact,))
+        existing_contact = cursor.fetchone()
+        
+        if existing_contact:
+            messagebox.showinfo("Info", "This contact is already saved.")
+        else:
+            cursor.execute("INSERT INTO contacts (number) VALUES (?)", (contact,))
+            conn.commit()
+            messagebox.showinfo("Success", "Emergency contact added successfully!")
+        
         conn.close()
-        messagebox.showinfo("Success", "Emergency contact added successfully!")
 
+# Function to get contacts
 def get_contacts_from_db():
     conn = sqlite3.connect("emergency_contacts.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT number FROM contacts")
+    cursor.execute("SELECT DISTINCT number FROM contacts")
     contacts = [row[0] for row in cursor.fetchall()]
     conn.close()
     return contacts
 
+# Function to remove contact
 def remove_contact_from_db():
     contacts = get_contacts_from_db()
     if not contacts:
@@ -58,6 +68,15 @@ def remove_contact_from_db():
         conn.commit()
         conn.close()
         messagebox.showinfo("Success", "Emergency contact removed successfully!")
+
+# Function to view contacts
+def view_contacts():
+    contacts = get_contacts_from_db()
+    if contacts:
+        contact_list = "\n".join(set(contacts))  # Remove duplicates before displaying
+        messagebox.showinfo("Saved Contacts", f"Emergency Contacts:\n{contact_list}")
+    else:
+        messagebox.showinfo("Saved Contacts", "No emergency contacts found.")
 
 init_db()
 
@@ -87,7 +106,7 @@ def get_location():
 # Send Emergency Message via Twilio SMS
 def send_sms_alert(location):
     client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    emergency_numbers = ["112", "100"] + get_contacts_from_db()  # Pre-stored numbers + user-added contacts
+    emergency_numbers = get_contacts_from_db()
     for number in emergency_numbers:
         try:
             message = client.messages.create(
@@ -119,6 +138,26 @@ def send_message():
         entry.delete(0, tk.END)
         chatbox.see(tk.END)
 
+# Database Setup
+def init_db():
+    conn = sqlite3.connect("emergency_contacts.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            number TEXT NOT NULL UNIQUE
+        )
+    """)
+    
+    # Remove all existing contacts except "8506017366"
+    cursor.execute("DELETE FROM contacts WHERE number != '8506017366'")
+
+    # Ensure "8506017366" is in the database
+    cursor.execute("INSERT OR IGNORE INTO contacts (number) VALUES ('8506017366')")
+    
+    conn.commit()
+    conn.close()
+
 # GUI Setup
 root = tk.Tk()
 root.title("Women Safety Bot")
@@ -148,16 +187,19 @@ yes_button.grid(row=0, column=0, padx=10, pady=5)
 no_button = tk.Button(button_frame, text="No", command=handle_no, font=BUTTON_FONT, bg='blue', fg='white', relief=tk.FLAT)
 no_button.grid(row=0, column=1, padx=10, pady=5)
 
-add_contact_button = tk.Button(root, text="Add Contact", command=add_contact_to_db, font=BUTTON_FONT, bg='#4CAF50', fg='white', relief=tk.FLAT)
-add_contact_button.pack(pady=5)
-
-remove_contact_button = tk.Button(root, text="Remove Contact", command=remove_contact_from_db, font=BUTTON_FONT, bg='#FF5733', fg='white', relief=tk.FLAT)
-remove_contact_button.pack(pady=5)
-
-entry = tk.Entry(root, width=40, font=FONT, borderwidth=2, relief=tk.GROOVE)
+entry = tk.Entry(root, font=FONT, width=40, borderwidth=5, relief=tk.GROOVE)
 entry.pack(pady=5)
 
-send_button = tk.Button(root, text="Send", command=send_message, font=BUTTON_FONT, bg='#6bace4', fg='white', relief=tk.FLAT)
+send_button = tk.Button(root, text="Send", command=send_message, font=BUTTON_FONT)
 send_button.pack(pady=5)
+
+view_contacts_button = tk.Button(root, text="View Contacts", command=view_contacts, font=BUTTON_FONT)
+view_contacts_button.pack(pady=5)
+
+add_contact_button = tk.Button(root, text="Add Contact", command=add_contact_to_db, font=BUTTON_FONT)
+add_contact_button.pack(pady=5)
+
+remove_contact_button = tk.Button(root, text="Remove Contact", command=remove_contact_from_db, font=BUTTON_FONT)
+remove_contact_button.pack(pady=5)
 
 root.mainloop()
